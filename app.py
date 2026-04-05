@@ -22,7 +22,7 @@ init_db()
 
 # --- GROQ AI HELPER ---
 # Used to provide helpful tips to parents filling out the form
-client = Groq(api_key="your_groq_api_key_here")
+client = Groq(api_key="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")
 
 def get_ai_assistance(field_name):
     try:
