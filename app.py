@@ -1,63 +1,89 @@
 import streamlit as st
 import json
 import os
-from groq import Groq
 import pandas as pd
+from groq import Groq
 
-# --- JSON FILE SETUP ---
+# -------------------- CONFIG --------------------
+st.set_page_config(page_title="Myer's College Admission Portal", layout="wide")
+
+# -------------------- FILE SETUP --------------------
 JSON_FILE = "applications.json"
+
 
 def load_data():
     if os.path.exists(JSON_FILE):
-        with open(JSON_FILE, "r") as f:
-            return json.load(f)
+        with open(JSON_FILE, "r") as file:
+            return json.load(file)
     return []
 
-def save_data(data):
-    with open(JSON_FILE, "w") as f:
-        json.dump(data, f, indent=4)
 
-# --- GROQ AI SETUP ---
+def save_data(data):
+    with open(JSON_FILE, "w") as file:
+        json.dump(data, file, indent=4)
+
+
+# -------------------- GROQ SETUP --------------------
 client = Groq(api_key="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")
 
-def get_ai_assistance(field_name):
+
+def generate_summary(count):
     try:
         response = client.chat.completions.create(
-            messages=[{
-                "role": "user",
-                "content": f"Explain why school needs {field_name} in 15 words."
-            }],
-            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": f"{count} students applied. Write a short 2-line summary."}],
+            model="llama-3.1-8b-instant"
         )
         return response.choices[0].message.content
     except:
-        return "Fill according to official documents."
+        return "AI summary unavailable."
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Myer's College Admission Portal", layout="wide")
 
-# --- SIDEBAR ---
+# -------------------- SIDEBAR --------------------
 with st.sidebar:
     st.image("logo.png", width=100)
     st.title("Myer's College")
+
     st.markdown("[Visit Website](https://myers.edu.pk)")
-    st.info("Registration fee: Rs. 300/-")
+    st.info("Registration Fee: Rs. 300/-")
 
-    app_mode = st.radio("Navigate", ["Student Registration", "Admin Control"])
+    st.success("Timings: 7AM - 1PM (SUMMER)")
 
-# --- STUDENT FORM ---
-if app_mode == "Student Registration":
+    st.markdown("### 📘 Student Handbook")
+    if os.path.exists("stdhbk(1).pdf"):
+        with open("stdhbk(1).pdf", "rb") as file:
+            st.download_button(
+                label="Download Handbook",
+                data=file,
+                file_name="Student_Handbook.pdf",
+                mime="application/pdf"
+            )
+    else:
+        st.warning("Handbook file not found.")
 
-    st.title("Myer's College Online Admission Portal")
-    st.warning("Registration does not guarantee admission.")
+    st.markdown("### 📰 Newsletter")
+    st.markdown("[December 2025 Newsletter](https://www.myers.edu.pk/newsletterdec25.pdf)")
 
-    with st.form("form"):
+    mode = st.radio("Navigation", ["Student Registration", "Admin Panel"])
 
-        st.subheader("1. Student Information")
+
+# -------------------- STUDENT REGISTRATION --------------------
+if mode == "Student Registration":
+
+    st.title("Online Admission Form")
+    st.warning("Submission does not guarantee admission.")
+
+    with st.form("admission_form"):
+
+        st.subheader("Student Information")
 
         col1, col2 = st.columns(2)
         name = col1.text_input("Student Name")
-        app_class = col2.selectbox("Class", ["K-1","K-2","K-3","K-4","E-1","E-2","E-3","C-1","C-2","C-3","M-1","M-2","M-3"])
+        student_class = col2.selectbox("Class", [
+            "K-1", "K-2", "K-3", "K-4",
+            "E-1", "E-2", "E-3",
+            "C-1", "C-2", "C-3",
+            "M-1", "M-2", "M-3"
+        ])
 
         col3, col4 = st.columns(2)
         dob = col3.date_input("Date of Birth")
@@ -68,76 +94,77 @@ if app_mode == "Student Registration":
         nationality = col6.text_input("Nationality")
 
         school = st.text_input("Current School")
+        kinship = st.text_input("Kinship (If applicable)")
 
-        st.subheader("2. Parents Information")
+        st.subheader("Parents Information")
 
         col7, col8 = st.columns(2)
-        f_name = col7.text_input("Father Name")
-        f_nic = col8.text_input("Father CNIC")
+        father_name = col7.text_input("Father Name")
+        father_cnic = col8.text_input("Father CNIC")
 
         col9, col10 = st.columns(2)
-        m_name = col9.text_input("Mother Name")
-        m_nic = col10.text_input("Mother CNIC")
+        mother_name = col9.text_input("Mother Name")
+        mother_cnic = col10.text_input("Mother CNIC")
 
         col11, col12 = st.columns(2)
-        f_occ = col11.text_input("Father Occupation")
-        m_occ = col12.text_input("Mother Occupation")
+        father_job = col11.text_input("Father Occupation")
+        mother_job = col12.text_input("Mother Occupation")
 
         address = st.text_area("Address")
         phone = st.text_input("Phone Number")
 
-        st.subheader("3. Medical Info")
+        st.subheader("Medical Information")
 
-        med = st.multiselect(
-            "Diseases",
+        diseases = st.multiselect(
+            "Select Diseases",
             ["Measles", "Mumps", "Rubella", "Chicken Pox"]
         )
 
-        fit = st.radio("Fit for games?", ["Yes", "No"])
+        fitness = st.radio("Fit for Physical Activities?", ["Yes", "No"])
 
-        st.subheader("4. Undertaking")
-        agree = st.checkbox("I agree to rules")
+        st.subheader("Agreement")
+        agree = st.checkbox("I agree to the rules and regulations")
 
-        submitted = st.form_submit_button("Submit")
+        submit = st.form_submit_button("Submit Application")
 
-        if submitted:
-            if agree and name and phone:
+        if submit:
+            if name and phone and agree:
 
-                new_entry = {
-                    "student_name": name,
-                    "class": app_class,
+                record = {
+                    "name": name,
+                    "class": student_class,
                     "dob": str(dob),
                     "hospital": hospital,
                     "religion": religion,
                     "nationality": nationality,
                     "school": school,
-                    "father_name": f_name,
-                    "father_nic": f_nic,
-                    "mother_name": m_name,
-                    "mother_nic": m_nic,
-                    "father_occ": f_occ,
-                    "mother_occ": m_occ,
+                    "father_name": father_name,
+                    "father_cnic": father_cnic,
+                    "mother_name": mother_name,
+                    "mother_cnic": mother_cnic,
+                    "father_job": father_job,
+                    "mother_job": mother_job,
                     "address": address,
                     "phone": phone,
-                    "medical": med,
-                    "fit": fit,
+                    "medical": diseases,
+                    "fitness": fitness,
                     "status": "Pending"
                 }
 
                 data = load_data()
-                data.append(new_entry)
+                data.append(record)
                 save_data(data)
 
                 st.success("Application submitted successfully!")
-
             else:
-                st.error("Please fill required fields")
+                st.error("Please complete required fields.")
 
-# --- ADMIN PANEL ---
-elif app_mode == "Admin Control":
 
-    st.title("Admin Panel")
-    password = st.text_input("Password", type="password")
+# -------------------- ADMIN PANEL --------------------
+elif mode == "Admin Panel":
+
+    st.title("Admin Dashboard")
+    password = st.text_input("Enter Password", type="password")
 
     if password == "I @m N0t 2NE1":
 
@@ -147,21 +174,14 @@ elif app_mode == "Admin Control":
 
         if data:
             df = pd.DataFrame(data)
-            st.dataframe(df)
+            st.dataframe(df, use_container_width=True)
 
             if st.button("Generate AI Summary"):
-                count = len(data)
-                prompt = f"{count} students applied. Write 2-line summary."
-
-                res = client.chat.completions.create(
-                    messages=[{"role": "user", "content": prompt}],
-                    model="llama-3.1-8b-instant"
-                )
-
-                st.info(res.choices[0].message.content)
+                summary = generate_summary(len(data))
+                st.info(summary)
 
         else:
-            st.info("No applications yet.")
+            st.info("No applications submitted yet.")
 
     elif password:
-        st.error("Wrong password")
+        st.error("Incorrect Password")
