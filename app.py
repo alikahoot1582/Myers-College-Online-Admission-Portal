@@ -18,7 +18,7 @@ def save_data(data):
         json.dump(data, f, indent=4)
 
 # --- GROQ AI SETUP ---
-client = Groq(api_key="YOUR_API_KEY_HERE")
+client = Groq(api_key="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")
 
 def get_ai_assistance(field_name):
     try:
