@@ -1,33 +1,106 @@
 import streamlit as st
-import json
-import os
+import sqlite3
 import pandas as pd
+import os
 from groq import Groq
 
 # -------------------- CONFIG --------------------
 st.set_page_config(page_title="Myer's College Admission Portal", layout="wide")
 
-# -------------------- FILE SETUP --------------------
-JSON_FILE = "applications.json"
+DB_FILE = "database.db"
+
+# -------------------- DATABASE --------------------
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS applications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        class TEXT,
+        dob TEXT,
+        hospital TEXT,
+        religion TEXT,
+        nationality TEXT,
+        school TEXT,
+        father_name TEXT,
+        father_cnic TEXT,
+        mother_name TEXT,
+        mother_cnic TEXT,
+        father_job TEXT,
+        mother_job TEXT,
+        address TEXT,
+        phone TEXT,
+        medical TEXT,
+        fitness TEXT,
+        status TEXT
+    )
+    ''')
+
+    conn.commit()
+    conn.close()
+
+
+def save_data(record):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+    INSERT INTO applications (
+        name, class, dob, hospital, religion, nationality,
+        school, father_name, father_cnic, mother_name, mother_cnic,
+        father_job, mother_job, address, phone, medical, fitness, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        record["name"], record["class"], record["dob"], record["hospital"],
+        record["religion"], record["nationality"], record["school"],
+        record["father_name"], record["father_cnic"], record["mother_name"],
+        record["mother_cnic"], record["father_job"], record["mother_job"],
+        record["address"], record["phone"],
+        ", ".join(record["medical"]), record["fitness"], record["status"]
+    ))
+
+    conn.commit()
+    conn.close()
 
 
 def load_data():
-    if os.path.exists(JSON_FILE):
-        with open(JSON_FILE, "r") as file:
-            return json.load(file)
-    return []
+    conn = sqlite3.connect(DB_FILE)
+    df = pd.read_sql_query("SELECT * FROM applications", conn)
+    conn.close()
+    return df
 
 
-def save_data(data):
-    with open(JSON_FILE, "w") as file:
-        json.dump(data, file, indent=4)
+def delete_record(record_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM applications WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
 
+
+def update_status(record_id, status):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE applications SET status = ? WHERE id = ?", (status, record_id))
+    conn.commit()
+    conn.close()
+
+
+# Initialize DB
+init_db()
 
 # -------------------- GROQ SETUP --------------------
-client = Groq(api_key="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")
+client = None
+if "GROQ_API_KEY" in st.secrets:
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 
 def generate_summary(count):
+    if not client:
+        return "AI summary unavailable."
+
     try:
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": f"{count} students applied. Write a short 2-line summary."}],
@@ -45,7 +118,6 @@ with st.sidebar:
 
     st.markdown("[Visit Website](https://myers.edu.pk)")
     st.info("Registration Fee: Rs. 300/-")
-
     st.success("Timings: 7AM - 1PM (SUMMER)")
 
     st.markdown("### 📘 Student Handbook")
@@ -151,11 +223,9 @@ if mode == "Student Registration":
                     "status": "Pending"
                 }
 
-                data = load_data()
-                data.append(record)
-                save_data(data)
-
+                save_data(record)
                 st.success("Application submitted successfully!")
+
             else:
                 st.error("Please complete required fields.")
 
@@ -170,14 +240,30 @@ elif mode == "Admin Panel":
 
         st.success("Access Granted")
 
-        data = load_data()
+        df = load_data()
 
-        if data:
-            df = pd.DataFrame(data)
+        if not df.empty:
             st.dataframe(df, use_container_width=True)
 
+            st.subheader("Manage Applications")
+
+            for index, row in df.iterrows():
+                col1, col2, col3 = st.columns(3)
+
+                if col1.button(f"Approve {row['id']}"):
+                    update_status(row['id'], "Approved")
+                    st.rerun()
+
+                if col2.button(f"Reject {row['id']}"):
+                    update_status(row['id'], "Rejected")
+                    st.rerun()
+
+                if col3.button(f"Delete {row['id']}"):
+                    delete_record(row['id'])
+                    st.rerun()
+
             if st.button("Generate AI Summary"):
-                summary = generate_summary(len(data))
+                summary = generate_summary(len(df))
                 st.info(summary)
 
         else:
